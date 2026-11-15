@@ -1,0 +1,113 @@
+{{- $useSqlite := not (or .Values.database.url .Values.database.existingSecret) -}}
+{{- if and $useSqlite (gt (int .Values.replicaCount) 1) -}}
+{{- fail "SQLite supports at most one replica; configure an external database for multiple replicas." -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flux-pub.fullname" . }}
+  labels:
+    {{- include "flux-pub.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ ternary "Recreate" "RollingUpdate" $useSqlite }}
+  selector:
+    matchLabels:
+      {{- include "flux-pub.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- $checksum := dict "checksum/bots" (include (print $.Template.BasePath "/configmap.yaml") . | sha256sum) }}
+        {{- toYaml (mergeOverwrite (deepCopy .Values.podAnnotations) $checksum) | nindent 8 }}
+      labels:
+        {{- $selectors := include "flux-pub.selectorLabels" . | fromYaml }}
+        {{- toYaml (mergeOverwrite (deepCopy .Values.podLabels) $selectors) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "flux-pub.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: flux-pub
+          image: {{ printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.env.PORT | int }}
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              {{- if .Values.database.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret | quote }}
+                  key: {{ .Values.database.secretKey | quote }}
+              {{- else }}
+              value: {{ .Values.database.url | default "sqlite:/data/flux.sqlite" | quote }}
+              {{- end }}
+            - name: ORIGIN
+              value: {{ required "env.ORIGIN must be set to the public origin." .Values.env.ORIGIN | quote }}
+            - name: PORT
+              value: {{ .Values.env.PORT | quote }}
+            - name: BOTS_CONFIG_FILE
+              value: /etc/bots.js
+            - name: NODE_ENV
+              value: production
+            - name: LOG_LEVEL
+              value: {{ .Values.env.LOG_LEVEL | quote }}
+            - name: TRUST_PROXY
+              value: {{ .Values.env.TRUST_PROXY | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            {{- toYaml (omit .Values.startupProbe "enabled") | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            {{- toYaml (omit .Values.livenessProbe "enabled") | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            {{- toYaml (omit .Values.readinessProbe "enabled") | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: bots
+              mountPath: /etc/bots.js
+              subPath: bots.js
+              readOnly: true
+            {{- if $useSqlite }}
+            - name: data
+              mountPath: /data
+            {{- end }}
+      volumes:
+        - name: bots
+          configMap:
+            name: {{ include "flux-pub.fullname" . }}-bots
+        {{- if $useSqlite }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.sqlite.existingClaim | default (printf "%s-data" (include "flux-pub.fullname" .)) }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

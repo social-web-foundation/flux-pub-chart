@@ -1,0 +1,23 @@
+{{- if and (not (or .Values.database.url .Values.database.existingSecret)) (not .Values.sqlite.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "flux-pub.fullname" . }}-data
+  labels:
+    {{- include "flux-pub.labels" . | nindent 4 }}
+  {{- if .Values.sqlite.retain }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if eq .Values.sqlite.storageClassName "-" }}
+  storageClassName: ""
+  {{- else if .Values.sqlite.storageClassName }}
+  storageClassName: {{ .Values.sqlite.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.sqlite.storageSize | quote }}
+{{- end }}

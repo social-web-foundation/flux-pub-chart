@@ -1,0 +1,95 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/social-web-foundation/flux.pub
+  pullPolicy: IfNotPresent
+  # Defaults to Chart.appVersion; a published commit SHA also works.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 9000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: flux.example
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Supply bots.js with --set-file userScript=./bots.js.
+userScript: |
+  export default {}
+
+env:
+  # Required: the public origin used in ActivityPub identifiers.
+  ORIGIN: ""
+  PORT: "9000"
+  LOG_LEVEL: info
+  TRUST_PROXY: "1"
+
+# Additional framework settings, including valueFrom Secret references.
+extraEnv: []
+
+# With neither option set, the chart uses SQLite on a persistent volume.
+database:
+  url: ""
+  existingSecret: ""
+  secretKey: url
+
+sqlite:
+  existingClaim: ""
+  # Empty selects the cluster's default StorageClass; "-" selects no class.
+  storageClassName: ""
+  storageSize: 10Gi
+  retain: true
+
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /livez
+    port: http
+  periodSeconds: 5
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /livez
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /readyz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

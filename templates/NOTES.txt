@@ -1,0 +1,9 @@
+flux.pub is deployed as {{ include "flux-pub.fullname" . }}.
+
+Public origin: {{ .Values.env.ORIGIN }}
+Bot configuration: /etc/bots.js
+FluxBot module: /opt/flux.pub/fluxbot.js
+
+Check readiness:
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "flux-pub.fullname" . }} 9000:{{ .Values.service.port }}
+  curl --fail http://127.0.0.1:9000/readyz
