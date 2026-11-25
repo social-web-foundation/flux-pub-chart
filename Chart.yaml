@@ -2,8 +2,8 @@ apiVersion: v2
 name: flux-pub
 description: Deploy flux.pub ActivityPub aggregation bots.
 type: application
-version: 0.3.2
-appVersion: "0.3.2"
+version: 0.3.3
+appVersion: "0.3.3"
 home: https://github.com/social-web-foundation/flux.pub
 sources:
   - https://github.com/social-web-foundation/flux.pub
